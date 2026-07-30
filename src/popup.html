@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>stagehand</title>
+  <style>
+    body { font-family: system-ui, sans-serif; width: 480px; padding: 12px; }
+    #brandBar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid #e0e0e0; }
+    .brandLeft { display: flex; align-items: baseline; gap: 10px; }
+    .brandName { font-size: 14px; font-weight: 600; }
+    #helpLink { font-size: 12px; color: #06c; text-decoration: none; }
+    #helpLink:hover { text-decoration: underline; }
+    #version { font-size: 12px; color: #888; }
+    label { display: block; margin-top: 8px; font-size: 12px; color: #555; }
+    input, select, textarea { width: 100%; box-sizing: border-box; padding: 4px; }
+    button { padding: 6px 12px; margin-right: 6px; }
+    .buttonRow { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; }
+    .buttonRow button { margin-top: 0; }
+    #exportCsv { margin-right: 0; margin-left: auto; }
+    #status { margin-top: 8px; font-size: 12px; color: #a00; }
+    #queryNote { display: none; margin-top: 8px; font-size: 11px; color: #666; line-height: 1.4; }
+    #queryNote.visible { display: block; }
+    #pageHeader { margin-bottom: 12px; }
+    #pageTitle { margin: 0 0 4px; font-size: 15px; font-weight: 600; }
+    #pageDescription { margin: 0; font-size: 12px; color: #555; line-height: 1.4; }
+    #runningAwayNote { display: none; margin-top: 10px; font-size: 11px; color: #666; }
+    #runningAwayNote.visible { display: block; }
+    table { border-collapse: collapse; width: 100%; margin-top: 10px; font-size: 11px; }
+    td, th { border: 1px solid #ccc; padding: 3px 5px; }
+    #resultsWrap { max-height: 260px; overflow: auto; }
+    .dateRow { display: flex; gap: 8px; margin-top: 8px; }
+    .dateField { flex: 1; min-width: 0; }
+    .dateField label { margin-top: 0; }
+    .dateHint { margin-top: 8px; font-size: 11px; color: #888; }
+    .auditHint { margin: 10px 0 0; font-size: 11px; color: #666; line-height: 1.4; }
+    .auditHint a { color: #06c; text-decoration: none; }
+    .auditHint a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <div id="brandBar">
+    <div class="brandLeft">
+      <span class="brandName">stagehand</span>
+      <a href="#" id="helpLink">Help</a>
+    </div>
+    <span id="version"></span>
+  </div>
+
+  <div id="pageHeader">
+    <h1 id="pageTitle"></h1>
+    <p id="pageDescription"></p>
+  </div>
+
+  <p id="runningAwayNote">A query is still running on Genesys — return to Audit Viewer to monitor results.</p>
+
+  <div id="auditQueryPanel" hidden>
+    <label>Service Name</label>
+    <select id="serviceName"></select>
+
+    <label>Entity Type</label>
+    <select id="entityType" disabled></select>
+
+    <label>Action</label>
+    <select id="action" disabled></select>
+
+    <p class="dateHint">Date range (UTC) — max 365 days back</p>
+    <div class="dateRow">
+      <div class="dateField">
+        <label for="start">Start</label>
+        <input type="datetime-local" id="start">
+      </div>
+      <div class="dateField">
+        <label for="end">End</label>
+        <input type="datetime-local" id="end">
+      </div>
+    </div>
+
+    <div class="buttonRow">
+      <div>
+        <button id="run">Run Query</button>
+        <button id="clear" title="Reset form and results after a query finishes">Clear</button>
+      </div>
+      <button id="exportCsv" hidden>Export CSV</button>
+    </div>
+    <p class="auditHint">
+      <strong>Caution:</strong> Genesys allows
+      <a href="https://developer.genesys.cloud/announcements/e242226c-ddc0-4593-b88d-21b11e92779a" target="_blank" rel="noopener noreferrer">one historical audit query per organization at a time</a>
+      (shared across all users, not one per user). Also, there is no cancel API — if another admin
+      is running a query, wait for it to finish.
+    </p>
+    <div id="status"></div>
+    <div id="queryNote">
+      Query running on Genesys servers. You can close this popup and reopen later to
+      check status.
+    </div>
+    <div id="resultsWrap"><table id="resultsTable"></table></div>
+  </div>
+
+  <script src="routes.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

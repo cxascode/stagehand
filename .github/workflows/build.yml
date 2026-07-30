@@ -1,0 +1,28 @@
+name: Build extension
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        browser: [chrome, firefox]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Assemble package
+        run: python3 scripts/build.py ${{ matrix.browser }}
+
+      - name: Read version
+        id: version
+        run: echo "value=$(python3 -c "import json; print(json.load(open('build/${{ matrix.browser }}/manifest.json'))['version'])")" >> "$GITHUB_OUTPUT"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: stagehand-${{ matrix.browser }}-${{ steps.version.outputs.value }}
+          path: build/${{ matrix.browser }}
