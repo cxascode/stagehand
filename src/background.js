@@ -26,6 +26,61 @@ const MAX_HISTORY_DAYS = 365;
 // active tab belongs to.
 let tokenStore = {}; // { [apiBase]: { token, expiry } }
 
+function isGenesysTabUrl(urlString) {
+  if (!urlString) return false;
+  try {
+    return isGenesysAppsHost(new URL(urlString).hostname);
+  } catch {
+    return false;
+  }
+}
+
+async function syncActionForTab(tabId, url) {
+  if (tabId == null || tabId < 0) return;
+  try {
+    if (isGenesysTabUrl(url)) {
+      await chrome.action.enable(tabId);
+    } else {
+      await chrome.action.disable(tabId);
+    }
+  } catch {
+    // Tab closed or a restricted URL (e.g. chrome://).
+  }
+}
+
+async function syncAllTabActions() {
+  const tabs = await chrome.tabs.query({});
+  await Promise.all(tabs.map((tab) => syncActionForTab(tab.id, tab.url)));
+}
+
+function watchTabActionState() {
+  chrome.tabs.onActivated.addListener(async ({ tabId }) => {
+    try {
+      const tab = await chrome.tabs.get(tabId);
+      await syncActionForTab(tabId, tab.url);
+    } catch {
+      // Tab gone.
+    }
+  });
+
+  chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+    if (changeInfo.url || changeInfo.status === "complete") {
+      syncActionForTab(tabId, tab.url);
+    }
+  });
+}
+
+chrome.runtime.onInstalled.addListener(() => {
+  syncAllTabActions();
+});
+
+chrome.runtime.onStartup.addListener(() => {
+  syncAllTabActions();
+});
+
+watchTabActionState();
+syncAllTabActions();
+
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === "TOKEN_FOUND") {
     tokenStore[msg.apiBase] = { token: msg.token, expiry: msg.expiry };
@@ -35,6 +90,13 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
   if (msg.type === "TOKEN_NOT_FOUND") {
     console.warn("stagehand: token not found.", msg.reason || "");
+    return;
+  }
+
+  if (msg.type === "ROUTE_CHANGED") {
+    if (sender.tab?.id != null) {
+      syncActionForTab(sender.tab.id, msg.href);
+    }
     return;
   }
 
