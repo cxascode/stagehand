@@ -49,7 +49,22 @@ async function downloadCsv(filename, columns, rows) {
   rows.forEach((row) => {
     lines.push(columns.map(({ key }) => escape(row[key])).join(","));
   });
-  await sendMsg({ type: "DOWNLOAD_CSV", filename, content: lines.join("\n") });
+  const content = lines.join("\n");
+
+  // Firefox popup blob downloads fail silently; background page can createObjectURL.
+  // Chrome MV3 service workers cannot — download from the popup instead.
+  if (isFirefoxBrowser()) {
+    await sendMsg({ type: "DOWNLOAD_CSV", filename, content });
+    return;
+  }
+
+  const blob = new Blob([content], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  try {
+    await chrome.downloads.download({ url, filename });
+  } finally {
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  }
 }
 
 function parseCsvLine(line) {
