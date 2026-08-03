@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "stagehand",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Admin browser extension for Genesys Cloud — extra tools for the features you use, like export to CSV.",
   "icons": {
     "16": "icons/icon16.png",

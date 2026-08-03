@@ -34,6 +34,7 @@ Navigate away or switch tabs and the popup updates to match.
 | Page | Route | What it does |
 |---|---|---|
 | **Audit Viewer** | `#/admin/troubleshooting/auditviewer` | Search historical audit logs (up to 1 year) and export results to CSV |
+| **Roles and Permissions** | `#/admin/people-permissions/roles` | Export/import role permissions using Genesys UI labels (CSV) |
 
 More admin pages can be added by extending `PAGE_ROUTES` and wiring a
 feature module.
@@ -53,25 +54,65 @@ Genesys constraints handled automatically:
 
 **Caution:** Genesys allows **one historical audit query per organization
 at a time** (org-wide, not per user). There is no cancel API — if another
-admin is running a query, wait for it to finish.
+admin is running a query, you must wait for it to finish.
 
 To use it:
 
 1. Go to **Admin → Troubleshooting → Audit Viewer**
 2. Open the stagehand popup
-3. Pick **Service**, optional **Entity Type** / **Action**, and a date
-   range (defaults to the last 30 days through today, midnight)
+3. Pick **Service**, optional **Entity Type** / **Action**, and a date/time
+   range (defaults to the last 30 days through now)
 4. **Run Query**, then **Export CSV** when results are ready
+
+### Roles and Permissions — role permissions export/import
+
+Export every org permission as CSV — one row per action. Columns match the
+role editor **Permission** column split on `>`:
+
+| Column | Example |
+|---|---|
+| **Domain** | `ACD Screen Share` |
+| **Entity Name** | `Chat` |
+| **Action** | `Escalate` |
+| **Selected** | `Yes` / `No` |
+| **Conditions** | (JSON, only when the grant is conditional) |
+
+**Only edit Selected.** Do not rename Domain, Entity Name, or Action — use
+a fresh export as the source of truth.
+
+**Conditions** is for conditional grants (uncommon). Leave it unchanged on
+those rows; empty means no conditions.
+
+Import is a **full replace** of the role's permission set from all rows
+marked **Selected = Yes**. The confirmation dialog shows a diff (+added /
+−removed / unchanged) before anything is applied.
+
+**Cross-org:** export from the **target org** first, apply your selections,
+then import. Permissions that do not exist in that org's catalog can be
+skipped after explicit confirmation.
+
+To use it:
+
+1. Go to **Admin → People and Permissions → Roles and Permissions**
+2. Open the stagehand popup
+3. Pick a **Role**
+4. **Export Permissions**, edit **Selected** in the CSV, then **Import Permissions**
+
+**Caution:** Export first and keep a backup. Import on **default/base
+roles** requires an **I accept the risk** acknowledgment in the
+confirmation dialog.
 
 ## Repo layout
 
 ```
 src/
   routes.js           URL hash → feature routing
-  popup.html/js       Context-aware popup UI
+  popup.html/js       Context-aware popup shell + feature orchestration
+  popup-core.js       Shared popup utilities
+  features/           Per-tool popup + background modules
   help.html/js        In-extension help (built from PAGE_ROUTES)
   content-script.js   Token extraction, live URL/hash
-  background.js       Orchestration, query state
+  background.js       Shared worker: tokens, routing, feature dispatch
   api/                Per-API-family HTTP modules
 manifests/
   manifest.chrome.json
@@ -153,10 +194,9 @@ If nothing is found:
 
 - Token lives only in memory / session storage — never synced across devices
 - A 401 means the token expired — reload the Genesys Cloud tab and retry
-- Firefox loads `routes.js` → `api/client.js` → `api/audits.js` →
-  `background.js` in order (`importScripts` is not available in Firefox
-  background scripts). Chrome uses a single service worker with
-  `importScripts`.
+- Firefox loads background scripts from the manifest in dependency order
+  (`routes.js`, `api/*`, `features/*`, `background.js`). Chrome uses a
+  single service worker with `importScripts`.
 
 ## For maintainers
 

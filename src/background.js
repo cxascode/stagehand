@@ -1,30 +1,97 @@
-// Tokens are cached per-region (apiBase), not as a single global pair.
-// Multiple tabs for the SAME region share one token (fine — same origin,
-// same session). Multiple tabs across DIFFERENT regions each get their
-// own slot, and queries resolve against whichever region the currently
-// active tab belongs to.
-// Genesys Cloud constraints on the full-history audits endpoint:
-// - max ~1 year of retained history
-// - max 30 days per query
-// This extension only targets historical audits (/api/v2/audits/query) —
-// realtime (/query/realtime, last 14 days) is already covered by the
-// product's own UI, so it's intentionally not implemented here.
-// Chrome MV3 loads deps via importScripts in the service worker; Firefox
-// lists the same files in manifest.background.scripts (importScripts is
-// not available in non-SW background scripts).
+// Shared background worker: tokens, page context, action state, feature dispatch.
+// Chrome MV3 loads deps via importScripts in the service worker; Firefox lists the
+// same files in manifest.background.scripts (importScripts is not available there).
 if (typeof importScripts === "function") {
-  importScripts("routes.js", "api/client.js", "api/audits.js");
+  importScripts(
+    "routes.js",
+    "api/client.js",
+    "api/pagination.js",
+    "api/permission-catalog.js",
+    "api/audits.js",
+    "api/authorization.js",
+    "features/audit-background.js",
+    "features/roles-background.js"
+  );
 }
 
-const MAX_QUERY_DAYS = 30;
-const MAX_HISTORY_DAYS = 365;
-
-// Tokens are cached per-region (apiBase), not as a single global pair.
-// Multiple tabs for the SAME region share one token (fine — same origin,
-// same session). Multiple tabs across DIFFERENT regions each get their
-// own slot, and queries resolve against whichever region the currently
-// active tab belongs to.
 let tokenStore = {}; // { [apiBase]: { token, expiry } }
+const messageHandlers = {};
+
+function registerMessageHandler(type, handler) {
+  messageHandlers[type] = handler;
+}
+
+registerAuditBackgroundHandlers(registerMessageHandler);
+registerRolesBackgroundHandlers(registerMessageHandler);
+
+registerMessageHandler("DOWNLOAD_CSV", async (msg, _sender, sendResponse) => {
+  const { filename, content } = msg;
+  if (!filename || content == null) {
+    sendResponse({ error: "Missing filename or content." });
+    return;
+  }
+
+  const blob = new Blob([content], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  try {
+    await chrome.downloads.download({ url, filename });
+    sendResponse({ ok: true });
+  } catch (err) {
+    sendResponse({ error: err.message });
+  } finally {
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  }
+});
+
+registerMessageHandler("ROLES_IMPORT_COMPLETE", async (msg, sender, sendResponse) => {
+  const message = msg.message || "Import complete.";
+  await chrome.storage.session.set({ rolesImportResult: { message, at: Date.now() } });
+
+  if (sender.tab?.id) {
+    try {
+      await chrome.tabs.remove(sender.tab.id);
+    } catch {
+      // Tab may already be closed.
+    }
+  }
+
+  const tabs = await chrome.tabs.query({});
+  const rolesTab = tabs.find((tab) => resolvePageContext(tab.url).feature === "roleExport");
+  const target = rolesTab || tabs.find((tab) => isGenesysTabUrl(tab.url));
+  if (!target?.id) {
+    sendResponse({ error: "No Genesys Cloud tab found." });
+    return;
+  }
+
+  await chrome.tabs.update(target.id, { active: true });
+  if (target.windowId != null) {
+    await chrome.windows.update(target.windowId, { focused: true });
+  }
+
+  try {
+    if (chrome.action?.openPopup && target.windowId != null) {
+      const contexts =
+        typeof chrome.runtime.getContexts === "function"
+          ? await chrome.runtime.getContexts({ contextTypes: ["POPUP"] })
+          : [];
+      if (!contexts.length) {
+        await chrome.action.openPopup({ windowId: target.windowId });
+        sendResponse({ ok: true, popup: true });
+        return;
+      }
+    }
+  } catch (err) {
+    console.warn("stagehand: openPopup failed", err.message);
+  }
+
+  try {
+    await chrome.tabs.sendMessage(target.id, { type: "SHOW_STAGEHAND_TOAST", message });
+  } catch {
+    // Content script unavailable — result still appears next time the popup opens.
+  }
+
+  sendResponse({ ok: true, popup: false });
+});
 
 function isGenesysTabUrl(urlString) {
   if (!urlString) return false;
@@ -80,90 +147,6 @@ chrome.runtime.onStartup.addListener(() => {
 
 watchTabActionState();
 syncAllTabActions();
-
-chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-  if (msg.type === "TOKEN_FOUND") {
-    tokenStore[msg.apiBase] = { token: msg.token, expiry: msg.expiry };
-    chrome.storage.session.set({ gcTokenStore: tokenStore });
-    return;
-  }
-
-  if (msg.type === "TOKEN_NOT_FOUND") {
-    console.warn("stagehand: token not found.", msg.reason || "");
-    return;
-  }
-
-  if (msg.type === "ROUTE_CHANGED") {
-    if (sender.tab?.id != null) {
-      syncActionForTab(sender.tab.id, msg.href);
-    }
-    return;
-  }
-
-  if (msg.type === "GET_TOKEN_STATUS") {
-    getActiveTabApiBase()
-      .then((apiBase) => sendResponse({ apiBase, hasToken: !!tokenStore[apiBase] }))
-      .catch((err) => sendResponse({ error: err.message }));
-    return true;
-  }
-
-  if (msg.type === "GET_SERVICE_MAPPING") {
-    fetchServiceMapping()
-      .then(sendResponse)
-      .catch(err => sendResponse({ error: err.message }));
-    return true; // keep channel open for async response
-  }
-
-  if (msg.type === "GET_PAGE_CONTEXT") {
-    getActiveTabPageContext()
-      .then(sendResponse)
-      .catch((err) => sendResponse({ error: err.message }));
-    return true;
-  }
-
-  if (msg.type === "GET_QUERY_STATE") {
-    getQueryState()
-      .then(sendResponse)
-      .catch((err) => sendResponse({ error: err.message }));
-    return true;
-  }
-
-  if (msg.type === "RUN_AUDIT_QUERY") {
-    getActiveTabPageContext()
-      .then((page) => {
-        if (page.feature !== "auditQuery") {
-          sendResponse({ error: page.message || "Open Audit Viewer to run queries." });
-          return;
-        }
-        return getQueryState().then((state) => {
-          if (state.status === "running") {
-            sendResponse({ error: "A query is already running in this browser session." });
-            return;
-          }
-          runAuditQueryChunked(msg.payload).catch(async (err) => {
-            const prev = await getQueryState();
-            await setQueryState({
-              ...prev,
-              status: "error",
-              message: err.message
-            });
-          });
-          sendResponse({ started: true });
-        });
-      })
-      .catch((err) => sendResponse({ error: err.message }));
-    return true;
-  }
-});
-
-async function getQueryState() {
-  const stored = await chrome.storage.session.get("queryState");
-  return stored.queryState || { status: "idle" };
-}
-
-async function setQueryState(state) {
-  await chrome.storage.session.set({ queryState: state });
-}
 
 async function cacheGenesysAppsOrigin(urlString) {
   if (!urlString) return;
@@ -227,8 +210,24 @@ async function getActiveTabApiBase() {
   return apiBase;
 }
 
+async function resolveApiBase() {
+  try {
+    return await getActiveTabApiBase();
+  } catch {
+    const { genesysAppsOrigin } = await chrome.storage.local.get("genesysAppsOrigin");
+    if (!genesysAppsOrigin) {
+      throw new Error("Open a Genesys Cloud admin tab once, then try again.");
+    }
+    const apiBase = deriveApiBase(new URL(genesysAppsOrigin).hostname);
+    if (!apiBase) {
+      throw new Error("Could not determine Genesys API base from the last admin tab.");
+    }
+    return apiBase;
+  }
+}
+
 async function ensureToken() {
-  const apiBase = await getActiveTabApiBase();
+  const apiBase = await resolveApiBase();
 
   if (Object.keys(tokenStore).length === 0) {
     const stored = await chrome.storage.session.get("gcTokenStore");
@@ -259,147 +258,44 @@ async function authedFetch(path, options = {}, hooks = {}) {
   });
 }
 
-async function fetchServiceMapping() {
-  const mapping = await getServiceMapping(authedFetch);
-  await chrome.storage.session.set({ serviceMapping: mapping });
-  return mapping;
-}
-
-// Splits [startISO, endISO) into consecutive chunks no longer than
-// MAX_QUERY_DAYS each.
-function chunkDateRange(startDate, endDate, maxDays) {
-  const chunks = [];
-  let chunkStart = new Date(startDate);
-  const finalEnd = new Date(endDate);
-  const maxMs = maxDays * 24 * 60 * 60 * 1000;
-
-  while (chunkStart < finalEnd) {
-    let chunkEnd = new Date(chunkStart.getTime() + maxMs);
-    if (chunkEnd > finalEnd) chunkEnd = finalEnd;
-    chunks.push([new Date(chunkStart), new Date(chunkEnd)]);
-    chunkStart = chunkEnd;
-  }
-  return chunks;
-}
-
-function toIsoNoMs(date) {
-  return date.toISOString().split(".")[0];
-}
-
-async function runSingleQuery(serviceName, filters, startDate, endDate, hooks = {}) {
-  return executeAuditQuery(
-    authedFetch,
-    {
-      interval: `${toIsoNoMs(startDate)}/${toIsoNoMs(endDate)}`,
-      serviceName,
-      filters
-    },
-    hooks
-  );
-}
-
-// Clamps the requested start date to Genesys's retention window, splits
-// the (possibly clamped) range into <=30-day chunks, and runs one query
-// per chunk sequentially, combining all results. Progress is written to
-// chrome.storage.session so the popup can restore state after reopen.
-async function runAuditQueryChunked(payload) {
-  const { serviceName, filters, start, end } = payload;
-
-  let startDate = new Date(start);
-  const endDate = new Date(end);
-  const earliestAllowed = new Date(Date.now() - MAX_HISTORY_DAYS * 24 * 60 * 60 * 1000);
-
-  let clamped = false;
-  if (startDate < earliestAllowed) {
-    startDate = earliestAllowed;
-    clamped = true;
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (msg.type === "TOKEN_FOUND") {
+    tokenStore[msg.apiBase] = { token: msg.token, expiry: msg.expiry };
+    chrome.storage.session.set({ gcTokenStore: tokenStore });
+    return;
   }
 
-  const effectiveStart = toIsoNoMs(startDate);
-  const chunks = chunkDateRange(startDate, endDate, MAX_QUERY_DAYS);
-  let allResults = [];
+  if (msg.type === "TOKEN_NOT_FOUND") {
+    console.warn("stagehand: token not found.", msg.reason || "");
+    return;
+  }
 
-  const baseMeta = {
-    chunkCount: chunks.length,
-    clampedToRetention: clamped,
-    effectiveStart
-  };
+  if (msg.type === "ROUTE_CHANGED") {
+    if (sender.tab?.id != null) {
+      syncActionForTab(sender.tab.id, msg.href);
+    }
+    return;
+  }
 
-  console.log("stagehand: audit query run started", {
-    serviceName,
-    start,
-    end,
-    chunkCount: chunks.length,
-    clampedToRetention: clamped,
-    effectiveStart,
-    filters
-  });
+  if (msg.type === "GET_TOKEN_STATUS") {
+    getActiveTabApiBase()
+      .then((apiBase) => sendResponse({ apiBase, hasToken: !!tokenStore[apiBase] }))
+      .catch((err) => sendResponse({ error: err.message }));
+    return true;
+  }
 
-  await setQueryState({
-    status: "running",
-    message: `Running query (${chunks.length} chunk${chunks.length === 1 ? "" : "s"})...`,
-    results: [],
-    chunkIndex: 0,
-    ...baseMeta
-  });
+  if (msg.type === "GET_PAGE_CONTEXT") {
+    getActiveTabPageContext()
+      .then(sendResponse)
+      .catch((err) => sendResponse({ error: err.message }));
+    return true;
+  }
 
-  for (let i = 0; i < chunks.length; i++) {
-    const [chunkStart, chunkEnd] = chunks[i];
-    console.log("stagehand: audit query chunk starting", {
-      chunk: i + 1,
-      chunkCount: chunks.length,
-      chunkStart: toIsoNoMs(chunkStart),
-      chunkEnd: toIsoNoMs(chunkEnd)
+  const handler = messageHandlers[msg.type];
+  if (handler) {
+    Promise.resolve(handler(msg, sender, sendResponse)).catch((err) => {
+      sendResponse({ error: err.message });
     });
-    await setQueryState({
-      status: "running",
-      message: `Running chunk ${i + 1} of ${chunks.length}...`,
-      results: allResults,
-      chunkIndex: i + 1,
-      ...baseMeta
-    });
-    const { results: chunkResults, transactionId } = await runSingleQuery(
-      serviceName,
-      filters,
-      chunkStart,
-      chunkEnd,
-      {
-        onCreated: async ({ transactionId: txId, state }) => {
-          const prev = await getQueryState();
-          await setQueryState({
-            ...prev,
-            transactionId: txId,
-            serverState: state
-          });
-        }
-      }
-    );
-    allResults = allResults.concat(chunkResults);
-    console.log("stagehand: audit query chunk complete", {
-      chunk: i + 1,
-      chunkCount: chunks.length,
-      transactionId,
-      chunkResultCount: chunkResults.length
-    });
+    return true;
   }
-
-  let message = `Done. ${allResults.length} result(s).`;
-  if (clamped) {
-    message += ` Start date was clamped to ${effectiveStart} — Genesys only retains 1 year of audit history.`;
-  }
-
-  await setQueryState({
-    status: "done",
-    message,
-    results: allResults,
-    chunkIndex: chunks.length,
-    ...baseMeta
-  });
-
-  return {
-    results: allResults,
-    chunkCount: chunks.length,
-    clampedToRetention: clamped,
-    effectiveStart
-  };
-}
+});
