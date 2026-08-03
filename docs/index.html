@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>stagehand — Genesys Cloud admin utilities</title>
+  <title>stagehand — Genesys Cloud admin browser extension</title>
   <meta name="description" content="Unofficial browser extension for Genesys Cloud — extra admin tools for the pages you use, like historical audit search and export to CSV.">
   <style>
     body { font-family: system-ui, sans-serif; max-width: 560px; margin: 0 auto; padding: 20px 16px 32px; color: #222; }
@@ -31,12 +31,13 @@
     footer p:last-child { margin-bottom: 0; }
     footer a { color: #06c; text-decoration: none; }
     footer a:hover { text-decoration: underline; }
+    .toolbar-icon { width: 16px; height: 16px; vertical-align: -3px; margin: 0 2px; }
   </style>
 </head>
 <body>
   <h1>stagehand</h1>
   <p class="tagline">
-    Admin utilities for Genesys Cloud — extra tools for the features you
+    Admin browser extension for Genesys Cloud — extra tools for the features you
     use, like export to CSV. Uses the session you already have; no OAuth
     setup required.
   </p>
@@ -51,26 +52,26 @@
   <h2>Install</h2>
   <div class="install">
     <h3>Chrome / Edge / Brave</h3>
-    <p>Chrome Web Store listing coming soon. For now, build from
-      <a href="https://github.com/cxascode/stagehand">GitHub</a> and load
-      unpacked at <code>chrome://extensions</code>.</p>
+    <p><a href="https://chromewebstore.google.com/detail/cnnganbcklcigfiobbihdddabffplmlc">Install from the Chrome Web Store</a>.
+      To build from source, see <a href="https://github.com/cxascode/stagehand">GitHub</a>.</p>
   </div>
   <div class="install">
     <h3>Firefox</h3>
-    <p>Firefox Add-ons listing coming soon. For now, build from
-      <a href="https://github.com/cxascode/stagehand">GitHub</a> and load
-      a temporary add-on at <code>about:debugging</code>.</p>
+    <p><a href="https://addons.mozilla.org/en-US/firefox/addon/stagehand/">Install from Firefox Add-ons</a>.
+      To build from source, see <a href="https://github.com/cxascode/stagehand">GitHub</a>.</p>
   </div>
 
   <h2>Usage</h2>
   <ol>
     <li>Log into Genesys Cloud admin in your browser as usual</li>
     <li>Open a page that has a stagehand tool (e.g. Audit Viewer)</li>
-    <li>Click the stagehand icon in the toolbar</li>
+    <li>Click the <img class="toolbar-icon" src="icons/icon32.png" alt="stagehand"> stagehand icon in the toolbar</li>
   </ol>
 
   <h2>Links</h2>
   <div class="links">
+    <a href="https://chromewebstore.google.com/detail/cnnganbcklcigfiobbihdddabffplmlc">Chrome Web Store</a>
+    <a href="https://addons.mozilla.org/en-US/firefox/addon/stagehand/">Firefox Add-ons</a>
     <a href="https://github.com/cxascode/stagehand">Source code</a>
     <a href="privacy.html">Privacy policy</a>
   </div>

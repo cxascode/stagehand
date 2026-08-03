@@ -10,7 +10,7 @@ party. All processing happens locally on your device.
 
 ## What stagehand does
 
-stagehand is an unofficial browser extension that adds admin utilities
+stagehand is an unofficial admin browser extension that adds extra tools
 to the Genesys Cloud web application — for example, querying historical
 audit logs and exporting results to CSV.
 

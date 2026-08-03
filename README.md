@@ -15,6 +15,8 @@ closes).
 
 Homepage: [https://cxascode.github.io/stagehand/](https://cxascode.github.io/stagehand/)
 
+**Install:** [Chrome Web Store](https://chromewebstore.google.com/detail/cnnganbcklcigfiobbihdddabffplmlc) · [Firefox Add-ons](https://addons.mozilla.org/en-US/firefox/addon/stagehand/)
+
 ## How it works
 
 1. You log into Genesys Cloud admin in a normal browser tab (`apps.*`).
@@ -101,19 +103,24 @@ Outputs:
 - `build/chrome/` or `build/firefox/` — load unpacked for testing
 - `build/stagehand-chrome-<version>.zip` — upload to the Chrome Web Store
 
-## Install — Chrome
+## Install
+
+- **Chrome / Edge / Brave:** [Chrome Web Store](https://chromewebstore.google.com/detail/cnnganbcklcigfiobbihdddabffplmlc)
+- **Firefox:** [Firefox Add-ons](https://addons.mozilla.org/en-US/firefox/addon/stagehand/)
+
+### Install from source — Chrome
 
 1. `chrome://extensions`
 2. Enable **Developer mode**
 3. **Load unpacked** → select `build/chrome`
 
-## Install — Firefox
+### Install from source — Firefox
 
 1. `about:debugging` → **This Firefox** → **Load Temporary Add-on**
 2. Select `build/firefox/manifest.json`
 
-Temporary add-ons are removed on browser restart — persistent install
-requires Mozilla's signing process.
+Temporary add-ons are removed on browser restart. For a normal install, use
+[Firefox Add-ons](https://addons.mozilla.org/en-US/firefox/addon/stagehand/).
 
 ## Multi-region / multi-tab behavior
 
