@@ -16,18 +16,18 @@
     button { padding: 6px 12px; margin-right: 6px; }
     .buttonRow { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; }
     .buttonRow button { margin-top: 0; }
-    #exportCsv { margin-right: 0; margin-left: auto; }
-    #status { margin-top: 8px; font-size: 12px; color: #a00; }
-    #queryNote { display: none; margin-top: 8px; font-size: 11px; color: #666; line-height: 1.4; }
-    #queryNote.visible { display: block; }
+    .exportButton { margin-right: 0; margin-left: auto; }
+    #status, #rolesStatus { margin-top: 8px; font-size: 12px; color: #a00; }
+    .jobNote { display: none; margin-top: 8px; font-size: 11px; color: #666; line-height: 1.4; }
+    .jobNote.visible { display: block; }
     #pageHeader { margin-bottom: 12px; }
     #pageTitle { margin: 0 0 4px; font-size: 15px; font-weight: 600; }
     #pageDescription { margin: 0; font-size: 12px; color: #555; line-height: 1.4; }
-    #runningAwayNote { display: none; margin-top: 10px; font-size: 11px; color: #666; }
-    #runningAwayNote.visible { display: block; }
+    .awayNote { display: none; margin-top: 10px; font-size: 11px; color: #666; }
+    .awayNote.visible { display: block; }
     table { border-collapse: collapse; width: 100%; margin-top: 10px; font-size: 11px; }
     td, th { border: 1px solid #ccc; padding: 3px 5px; }
-    #resultsWrap { max-height: 260px; overflow: auto; }
+    .resultsWrap { max-height: 260px; overflow: auto; }
     .dateRow { display: flex; gap: 8px; margin-top: 8px; }
     .dateField { flex: 1; min-width: 0; }
     .dateField label { margin-top: 0; }
@@ -35,6 +35,73 @@
     .auditHint { margin: 10px 0 0; font-size: 11px; color: #666; line-height: 1.4; }
     .auditHint a { color: #06c; text-decoration: none; }
     .auditHint a:hover { text-decoration: underline; }
+    .confirmOverlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.35);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 12px;
+      z-index: 10;
+    }
+    .confirmOverlay[hidden] { display: none; }
+    .confirmDialog {
+      background: #fff;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      padding: 12px;
+      width: 100%;
+      max-width: 420px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+    }
+    .confirmDialog h2 {
+      margin: 0 0 8px;
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .confirmMessage {
+      margin: 0;
+      font-size: 11px;
+      line-height: 1.45;
+      color: #333;
+      white-space: pre-wrap;
+      max-height: 220px;
+      overflow: auto;
+    }
+    .riskBlock {
+      margin-top: 10px;
+      padding: 8px;
+      border: 1px solid #f0c36d;
+      background: #fff8e6;
+      border-radius: 4px;
+    }
+    .riskBlock[hidden] { display: none; }
+    .riskBlock p {
+      margin: 0 0 8px;
+      font-size: 11px;
+      line-height: 1.4;
+      color: #5c4a00;
+    }
+    .riskAccept {
+      display: flex;
+      align-items: flex-start;
+      gap: 6px;
+      margin: 0;
+      font-size: 11px;
+      color: #333;
+      cursor: pointer;
+    }
+    .riskAccept input {
+      width: auto;
+      margin-top: 2px;
+    }
+    .confirmActions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 6px;
+      margin-top: 12px;
+    }
   </style>
 </head>
 <body>
@@ -51,7 +118,8 @@
     <p id="pageDescription"></p>
   </div>
 
-  <p id="runningAwayNote">A query is still running on Genesys — return to Audit Viewer to monitor results.</p>
+  <p id="auditRunningAwayNote" class="awayNote">A query is still running on Genesys — return to Audit Viewer to monitor results.</p>
+  <p id="rolesRunningAwayNote" class="awayNote">A role permissions operation is still running — return to Roles and Permissions to monitor results.</p>
 
   <div id="auditQueryPanel" hidden>
     <label>Service Name</label>
@@ -63,15 +131,15 @@
     <label>Action</label>
     <select id="action" disabled></select>
 
-    <p class="dateHint">Date range (UTC) — max 365 days back</p>
+    <p class="dateHint">Date/time range (local time) — max 365 days back</p>
     <div class="dateRow">
       <div class="dateField">
         <label for="start">Start</label>
-        <input type="datetime-local" id="start">
+        <input type="datetime-local" id="start" step="60">
       </div>
       <div class="dateField">
         <label for="end">End</label>
-        <input type="datetime-local" id="end">
+        <input type="datetime-local" id="end" step="60">
       </div>
     </div>
 
@@ -80,23 +148,93 @@
         <button id="run">Run Query</button>
         <button id="clear" title="Reset form and results after a query finishes">Clear</button>
       </div>
-      <button id="exportCsv" hidden>Export CSV</button>
+      <button id="exportCsv" class="exportButton" hidden>Export CSV</button>
     </div>
     <p class="auditHint">
       <strong>Caution:</strong> Genesys allows
       <a href="https://developer.genesys.cloud/announcements/e242226c-ddc0-4593-b88d-21b11e92779a" target="_blank" rel="noopener noreferrer">one historical audit query per organization at a time</a>
       (shared across all users, not one per user). Also, there is no cancel API — if another admin
-      is running a query, wait for it to finish.
+      is running a query, you must wait for it to finish.
     </p>
     <div id="status"></div>
-    <div id="queryNote">
+    <div id="queryNote" class="jobNote">
       Query running on Genesys servers. You can close this popup and reopen later to
       check status.
     </div>
-    <div id="resultsWrap"><table id="resultsTable"></table></div>
+    <div class="resultsWrap"><table id="resultsTable"></table></div>
+  </div>
+
+  <div id="rolesExportPanel" hidden>
+    <label for="roleSelect">Role</label>
+    <select id="roleSelect"></select>
+
+    <div class="buttonRow">
+      <div>
+        <button id="rolesExport">Export Permissions</button>
+        <button id="rolesImport">Import Permissions</button>
+        <button id="rolesClear" title="Reset after an operation finishes">Clear</button>
+      </div>
+    </div>
+    <input type="file" id="rolesImportFile" accept=".csv,text/csv" hidden>
+
+    <p class="auditHint">
+      <strong>Export Permissions</strong> saves a CSV of every org permission, one row per action.
+      Columns match the role editor <strong>Permission</strong> column split on
+      <strong>&gt;</strong>: <strong>Domain</strong>, <strong>Entity Name</strong>,
+      <strong>Action</strong>       (e.g. <code>ACD Screen Share</code>,
+      <code>Chat</code>, <code>Escalate</code>). Only edit <strong>Selected</strong> —
+      leave <strong>Conditions</strong> unchanged on conditional rows (empty means none).
+    </p>
+
+    <div id="rolesStatus"></div>
+    <div id="rolesNote" class="jobNote">
+      Operation running. You can close this popup and reopen later to check status.
+    </div>
+  </div>
+
+  <div id="rolesImportPartial" class="confirmOverlay" hidden>
+    <div class="confirmDialog" role="dialog" aria-modal="true" aria-labelledby="rolesImportPartialTitle">
+      <h2 id="rolesImportPartialTitle">Permissions not in this org</h2>
+      <pre id="rolesImportPartialMessage" class="confirmMessage"></pre>
+      <div class="riskBlock">
+        <label class="riskAccept" for="rolesImportPartialAccept">
+          <input type="checkbox" id="rolesImportPartialAccept">
+          Skip <span id="rolesImportPartialCount">0</span> missing permission(s) and import the rest
+        </label>
+      </div>
+      <div class="confirmActions">
+        <button type="button" id="rolesImportPartialCancel">Cancel</button>
+        <button type="button" id="rolesImportPartialProceed" disabled>Continue</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="rolesImportConfirm" class="confirmOverlay" hidden>
+    <div class="confirmDialog" role="dialog" aria-modal="true" aria-labelledby="rolesImportConfirmTitle">
+      <h2 id="rolesImportConfirmTitle">Confirm import</h2>
+      <pre id="rolesImportConfirmMessage" class="confirmMessage"></pre>
+      <div id="rolesImportRiskBlock" class="riskBlock" hidden>
+        <p>
+          <strong>Caution:</strong> This is a <span id="rolesImportRiskRoleType">default</span> role.
+          Genesys may restrict changes, and import replaces all permissions on the role.
+        </p>
+        <label class="riskAccept" for="rolesImportRiskAccept">
+          <input type="checkbox" id="rolesImportRiskAccept">
+          I accept the risk
+        </label>
+      </div>
+      <div class="confirmActions">
+        <button type="button" id="rolesImportConfirmCancel">Cancel</button>
+        <button type="button" id="rolesImportConfirmProceed">Import</button>
+      </div>
+    </div>
   </div>
 
   <script src="routes.js"></script>
+  <script src="popup-core.js"></script>
+  <script src="features/roles-import-shared.js"></script>
+  <script src="features/audit-popup.js"></script>
+  <script src="features/roles-popup.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>

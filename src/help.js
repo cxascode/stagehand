@@ -42,6 +42,33 @@ async function renderHelp() {
     desc.textContent = route.description;
 
     entry.append(heading, desc);
+
+    if (route.helpDetail) {
+      if (route.helpDetail.steps?.length) {
+        const stepsHeading = document.createElement("h4");
+        stepsHeading.textContent = "How to use";
+        const steps = document.createElement("ol");
+        for (const step of route.helpDetail.steps) {
+          const item = document.createElement("li");
+          item.textContent = step;
+          steps.appendChild(item);
+        }
+        entry.append(stepsHeading, steps);
+      }
+
+      if (route.helpDetail.notes?.length) {
+        const notesHeading = document.createElement("h4");
+        notesHeading.textContent = "Notes";
+        const notes = document.createElement("ul");
+        for (const note of route.helpDetail.notes) {
+          const item = document.createElement("li");
+          item.textContent = note;
+          notes.appendChild(item);
+        }
+        entry.append(notesHeading, notes);
+      }
+    }
+
     list.appendChild(entry);
   }
 }

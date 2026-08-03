@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>stagehand — Import Permissions</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 520px; margin: 0 auto; padding: 16px; }
+    h1 { margin: 0 0 8px; font-size: 16px; font-weight: 600; }
+    p { margin: 0 0 12px; font-size: 12px; color: #555; line-height: 1.45; }
+    button { padding: 8px 14px; margin-right: 8px; font-size: 13px; }
+    #status { margin-top: 12px; font-size: 12px; color: #555; min-height: 1.2em; }
+    #status.error { color: #a00; }
+    .confirmOverlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.35);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 12px;
+      z-index: 10;
+    }
+    .confirmOverlay[hidden] { display: none; }
+    .confirmDialog {
+      background: #fff;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      padding: 12px;
+      width: 100%;
+      max-width: 420px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+    }
+    .confirmDialog h2 { margin: 0 0 8px; font-size: 14px; font-weight: 600; }
+    .confirmMessage {
+      margin: 0;
+      font-size: 11px;
+      line-height: 1.45;
+      color: #333;
+      white-space: pre-wrap;
+      max-height: 360px;
+      overflow: auto;
+    }
+    .riskBlock {
+      margin-top: 10px;
+      padding: 8px;
+      border: 1px solid #f0c36d;
+      background: #fff8e6;
+      border-radius: 4px;
+    }
+    .riskBlock[hidden] { display: none; }
+    .riskBlock p { margin: 0 0 8px; font-size: 11px; line-height: 1.4; color: #5c4a00; }
+    .riskAccept {
+      display: flex;
+      align-items: flex-start;
+      gap: 6px;
+      margin: 0;
+      font-size: 11px;
+      color: #333;
+      cursor: pointer;
+    }
+    .riskAccept input { width: auto; margin-top: 2px; }
+    .confirmActions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 6px;
+      margin-top: 12px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Import role permissions</h1>
+  <p id="roleSummary">Loading…</p>
+  <p>Choose a CSV exported from stagehand. You will confirm changes before anything is applied.</p>
+  <p id="importHint" style="font-size: 11px; color: #666;">Keep a Genesys Cloud admin tab open in this browser — stagehand uses it for API access.</p>
+  <button type="button" id="chooseCsv">Choose CSV file</button>
+  <button type="button" id="closePage">Close</button>
+  <input type="file" id="csvFile" accept=".csv,text/csv" hidden>
+  <div id="status"></div>
+
+  <div id="rolesImportPartial" class="confirmOverlay" hidden>
+    <div class="confirmDialog" role="dialog" aria-modal="true">
+      <h2>Permissions not in this org</h2>
+      <pre id="rolesImportPartialMessage" class="confirmMessage"></pre>
+      <div class="riskBlock">
+        <label class="riskAccept" for="rolesImportPartialAccept">
+          <input type="checkbox" id="rolesImportPartialAccept">
+          Skip <span id="rolesImportPartialCount">0</span> missing permission(s) and import the rest
+        </label>
+      </div>
+      <div class="confirmActions">
+        <button type="button" id="rolesImportPartialCancel">Cancel</button>
+        <button type="button" id="rolesImportPartialProceed" disabled>Continue</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="rolesImportConfirm" class="confirmOverlay" hidden>
+    <div class="confirmDialog" role="dialog" aria-modal="true">
+      <h2>Confirm import</h2>
+      <pre id="rolesImportConfirmMessage" class="confirmMessage"></pre>
+      <div id="rolesImportRiskBlock" class="riskBlock" hidden>
+        <p>
+          <strong>Caution:</strong> This is a <span id="rolesImportRiskRoleType">default</span> role.
+          Genesys may restrict changes, and import replaces all permissions on the role.
+        </p>
+        <label class="riskAccept" for="rolesImportRiskAccept">
+          <input type="checkbox" id="rolesImportRiskAccept">
+          I accept the risk
+        </label>
+      </div>
+      <div class="confirmActions">
+        <button type="button" id="rolesImportConfirmCancel">Cancel</button>
+        <button type="button" id="rolesImportConfirmProceed">Import</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="popup-core.js"></script>
+  <script src="features/roles-import-shared.js"></script>
+  <script src="roles-import-page.js"></script>
+</body>
+</html>

@@ -13,11 +13,61 @@ const PAGE_ROUTES = [
     feature: "auditQuery",
     hashPrefix: "#/admin/troubleshooting/auditviewer",
     title: "Audit Viewer",
-    description: "Allows searching historical audit log up to 1 year prior."
+    description: "Search historical audit logs (up to 1 year) and export results to CSV.",
+    helpDetail: {
+      steps: [
+        "Go to Admin → Troubleshooting → Audit Viewer",
+        "Open the stagehand popup",
+        "Pick Service, optional Entity Type / Action, and a date range",
+        "Run Query, then Export CSV when results are ready"
+      ],
+      notes: [
+        "Queries full audit history only — realtime audits (last 14 days) are out of scope; the product UI already covers those.",
+        "Genesys allows one historical audit query per organization at a time (org-wide). If another admin is running a query, you must wait for it to finish.",
+        "Long date ranges are split into 30-day chunks automatically. Start dates older than one year are clamped."
+      ]
+    }
+  },
+  {
+    feature: "roleExport",
+    hashPrefix: "#/admin/people-permissions/roles",
+    altHashPrefixes: ["#/admin/authorization/roles"],
+    title: "Roles and Permissions",
+    description: "Export and import role permissions as CSV using Genesys UI labels.",
+    helpDetail: {
+      steps: [
+        "Go to Admin → People and Permissions → Roles and Permissions",
+        "Open the stagehand popup",
+        "Pick a role",
+        "Export Permissions, edit Selected in the CSV, then Import Permissions"
+      ],
+      notes: [
+        "CSV columns: Selected, Domain, Entity Name, Action, Conditions. Domain / Entity Name / Action match the role editor Permission column (e.g. ACD Screen Share > Chat > Escalate).",
+        "Only edit Selected. Do not rename Domain, Entity Name, or Action.",
+        "Conditions is for conditional grants (uncommon). Leave it unchanged — empty means no conditions.",
+        "Import replaces the role's full permission set. Export first and keep a backup.",
+        "Import shows a diff (+added / −removed / unchanged) before you confirm.",
+        "Importing into a different org? Export from the target org first, then apply your selections. Permissions missing in that org can be skipped after explicit confirmation.",
+        "Import on default or base roles requires an I accept the risk acknowledgment."
+      ]
+    }
   }
 ];
 
-const AUDIT_VIEWER_HASH = PAGE_ROUTES[0].hashPrefix;
+function getRouteByFeature(featureId) {
+  return PAGE_ROUTES.find((route) => route.feature === featureId) || null;
+}
+
+const AUDIT_VIEWER_HASH = getRouteByFeature("auditQuery")?.hashPrefix || "";
+const ROLES_HASH = getRouteByFeature("roleExport")?.hashPrefix || "";
+
+function routeHashMatches(hash, route) {
+  if (hash.startsWith(route.hashPrefix)) return true;
+  for (const alt of route.altHashPrefixes || []) {
+    if (hash.startsWith(alt)) return true;
+  }
+  return false;
+}
 
 function buildRouteUrl(appsOrigin, route) {
   const shell = route.shell || GENESYS_APP_SHELL;
@@ -54,14 +104,13 @@ function resolvePageContext(urlString) {
       reason: "not-genesys",
       hostname: url.hostname,
       hash: url.hash || "",
-      message:
-        "Open Genesys Cloud admin and go to Audit Viewer (Admin → Troubleshooting → Audit Viewer)."
+      message: "Open Genesys Cloud admin in this browser tab to use stagehand."
     };
   }
 
   const hash = url.hash || "";
   for (const route of PAGE_ROUTES) {
-    if (hash.startsWith(route.hashPrefix)) {
+    if (routeHashMatches(hash, route)) {
       return {
         feature: route.feature,
         route,
@@ -77,8 +126,11 @@ function resolvePageContext(urlString) {
     reason: "unsupported-route",
     hostname: url.hostname,
     hash,
-    message:
-      "No stagehand tools for this page. Open Audit Viewer to run historical audit queries.",
-    suggestedHash: AUDIT_VIEWER_HASH
+    message: "No stagehand tools for this page yet.",
+    suggestedHash: AUDIT_VIEWER_HASH,
+    suggestedRoutes: PAGE_ROUTES.map((route) => ({
+      title: route.title,
+      hashPrefix: route.hashPrefix
+    }))
   };
 }

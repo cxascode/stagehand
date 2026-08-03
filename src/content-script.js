@@ -91,13 +91,24 @@
     return valid[0];
   }
 
+  function safeSendMessage(message) {
+    if (!chrome.runtime?.id) return;
+    try {
+      chrome.runtime.sendMessage(message, () => {
+        void chrome.runtime.lastError;
+      });
+    } catch {
+      // Extension was reloaded or is unavailable in this tab.
+    }
+  }
+
   const apiBase = deriveApiBase(window.location.hostname);
   const found = pickBestToken();
 
   if (found && apiBase) {
-    chrome.runtime.sendMessage({ type: "TOKEN_FOUND", ...found, apiBase });
+    safeSendMessage({ type: "TOKEN_FOUND", ...found, apiBase });
   } else {
-    chrome.runtime.sendMessage({
+    safeSendMessage({
       type: "TOKEN_NOT_FOUND",
       reason: !apiBase
         ? `Unexpected hostname pattern: ${window.location.hostname}`
@@ -112,11 +123,42 @@
         hash: window.location.hash,
         title: document.title
       });
+      return true;
+    }
+
+    if (msg.type === "SHOW_STAGEHAND_TOAST") {
+      showStagehandToast(msg.message || "Done.");
+      sendResponse({ ok: true });
+      return true;
     }
   });
 
+  function showStagehandToast(message) {
+    const existing = document.getElementById("stagehand-toast");
+    if (existing) existing.remove();
+
+    const toast = document.createElement("div");
+    toast.id = "stagehand-toast";
+    toast.textContent = message;
+    Object.assign(toast.style, {
+      position: "fixed",
+      top: "16px",
+      right: "16px",
+      zIndex: "2147483647",
+      maxWidth: "360px",
+      padding: "12px 14px",
+      background: "#1f2937",
+      color: "#fff",
+      font: "13px/1.4 system-ui, sans-serif",
+      borderRadius: "8px",
+      boxShadow: "0 8px 24px rgba(0,0,0,0.2)"
+    });
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 8000);
+  }
+
   function notifyRouteChange() {
-    chrome.runtime.sendMessage({
+    safeSendMessage({
       type: "ROUTE_CHANGED",
       href: window.location.href,
       hash: window.location.hash,
