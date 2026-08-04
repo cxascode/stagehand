@@ -15,6 +15,38 @@
     .links { display: flex; flex-wrap: wrap; gap: 12px 20px; margin: 8px 0 0; }
     .links a { font-size: 13px; color: #06c; text-decoration: none; font-weight: 500; }
     .links a:hover { text-decoration: underline; }
+    .pageTitleLine {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: 0.35em 0.5em;
+      margin: 0 0 8px;
+      font-size: 22px;
+      font-weight: 700;
+      line-height: 1.2;
+    }
+    .pageTitleLine h1 {
+      display: contents;
+      margin: 0;
+      font: inherit;
+    }
+    .siteHomeLink {
+      font-size: 14px;
+      font-weight: 600;
+      color: #06c;
+      text-decoration: none;
+    }
+    .siteHomeLink:hover { text-decoration: underline; }
+    .pageTitleSeparator {
+      font-size: 14px;
+      font-weight: 400;
+      color: #888;
+    }
+    .pageTitleCurrent {
+      font-size: inherit;
+      font-weight: inherit;
+      color: #222;
+    }
     .install { border: 1px solid #ddd; border-radius: 6px; padding: 12px 14px; margin-bottom: 12px; }
     .install h3 { margin: 0 0 6px; font-size: 14px; }
     .install p { margin: 0; }
@@ -35,7 +67,11 @@
   </style>
 </head>
 <body>
-  <h1>stagehand</h1>
+  <h1 class="pageTitleLine">
+    <a class="siteHomeLink" href="https://cxascode.github.io/">Home</a>
+    <span class="pageTitleSeparator" aria-hidden="true">/</span>
+    <span class="pageTitleCurrent">stagehand</span>
+  </h1>
   <p class="tagline">
     Admin browser extension for Genesys Cloud — extra tools for the features you
     use, like export to CSV. Uses the session you already have; no OAuth
